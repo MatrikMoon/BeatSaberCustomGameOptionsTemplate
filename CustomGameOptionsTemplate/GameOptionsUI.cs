@@ -6,7 +6,14 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-
+/*
+ * Created by Moon on 10/14/2018
+ * Helper class to assist in adding items to the Game Option list
+ * IMPORTANT!!! => You *MUST* use this in "ActiveSceneChanged".
+ * This class registers a callback with "SceneLoaded" for its own purposes.
+ * If you use this in "SceneLoaded", it WILL break.
+ */
+ 
 namespace CustomGameOptionsTemplate
 {
     abstract class GameOption
