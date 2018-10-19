@@ -50,7 +50,7 @@ namespace CustomGameOptionsTemplate
                 ctOption.OnChange += (e) => Logger.Info($"ONCHANGE4: {e}");
 
                 var ctToggle = GameOptionsUI.CreateToggleOption("ChromaToggle1");
-                ctToggle.Default = true;
+                ctToggle.GetValue = true;
                 ctToggle.OnToggle += (b) => Logger.Info($"TOGGLE1: {b}");
 
                 ctToggle = GameOptionsUI.CreateToggleOption("ChromaToggle2");
@@ -60,7 +60,7 @@ namespace CustomGameOptionsTemplate
                 ctToggle.OnToggle += (b) => Logger.Info($"TOGGLE3: {b}");
 
                 ctToggle = GameOptionsUI.CreateToggleOption("ChromaToggle4");
-                ctToggle.Default = true;
+                ctToggle.GetValue = true;
                 ctToggle.OnToggle += (b) => Logger.Info($"TOGGLE4: {b}");
 
                 ctOption = GameOptionsUI.CreateListOption("ChromaList5");
@@ -81,8 +81,6 @@ namespace CustomGameOptionsTemplate
 
                 ctToggle = GameOptionsUI.CreateToggleOption("ChromaToggle5");
                 ctToggle.OnToggle += (b) => Logger.Info($"TOGGLE5: {b}");
-
-                GameOptionsUI.Build();
             }
         }
 
