@@ -6,10 +6,9 @@ THIS IS A PERSONAL PROJECT. ANY CODE WITHIN IS NOT INHERENTLY MY OWN, BUT PROPER
 Important Info
 ======
 
-As of right now, 10/13/2018, this code is designated for use in ChromaToggle.
-I say this because as of right now, if two developers were to try to use this helper class,
-UI chaos would ensue. This is due to the fact that each particular instance of the helper would try to
-make modifications to the object hierarchy without knowledge of each other.
+I've itemized a few tips for ya!
+1. This helper file now supports being used in multiple plugins.
+2. Be sure to use it only in "activeSceneChanged" and not "sceneLoaded".
+3. Be sure your ReflectionUtils has the proper methods to support the main helper file.
 
-One day, maybe, this will be fixed, but now that I've gotten this far I'm gonna take a break and
-focus on my ScoreSaber rank ;)
+In short, use this template as an example to get you started!
