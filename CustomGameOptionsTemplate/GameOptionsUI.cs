@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace CustomGameOptionsTemplate
@@ -17,7 +19,7 @@ namespace CustomGameOptionsTemplate
     class ToggleOption : GameOption
     {
         public event Action<bool> OnToggle;
-        public bool Default = false;
+        public bool GetValue = false;
 
         public ToggleOption(string optionName)
         {
@@ -43,7 +45,7 @@ namespace CustomGameOptionsTemplate
             gameObject.transform.rotation = Quaternion.identity;
             gameObject.SetActive(false); //All options start disabled
 
-            gameObject.GetComponentInChildren<HMUI.Toggle>().isOn = Default;
+            gameObject.GetComponentInChildren<HMUI.Toggle>().isOn = GetValue;
             gameObject.GetComponentInChildren<HMUI.Toggle>().didSwitchEvent += (_, e) => { OnToggle?.Invoke(e); };
         }
     }
@@ -74,7 +76,7 @@ namespace CustomGameOptionsTemplate
 
             //Slim down the toggle option so it fits in the space we have before the divider
             (gameObject.transform as RectTransform).sizeDelta = new Vector2(50, (gameObject.transform as RectTransform).sizeDelta.y);
-
+            
             //This magical nonsense is courtesy of Taz and his SettingsUI class
             VolumeSettingsController volume = gameObject.GetComponent<VolumeSettingsController>();
             ListViewController newListSettingsController = (ListViewController)ReflectionUtil.CopyComponent(volume, typeof(ListSettingsController), typeof(ListViewController), gameObject);
@@ -117,10 +119,30 @@ namespace CustomGameOptionsTemplate
         {
             get
             {
-                if (_instance == null)
+                if (!_instance)
                 {
-                    _instance = new GameObject("GameOptionsUI").AddComponent<GameOptionsUI>();
+                    var existingObject = GameObject.Find("GameOptionsUI");
+                    if (existingObject != null)
+                    {
+                        var existingComponent = existingObject.GetComponent("GameOptionsUI");
+
+                        _instance = new GameOptionsUI();
+                        _instance.customOptions = existingObject.GetComponent("GameOptionsUI").GetField<IList<object>>("customOptions");
+                    }
+                    else
+                    {
+                        _instance = new GameObject("GameOptionsUI").AddComponent<GameOptionsUI>();
+
+                        //If we're here, this is the class that will handle the ".Build()"
+                        //when necessary. Only the first instance created will make it here.
+                        UnityAction<Scene, LoadSceneMode> buildWhenLoaded = (Scene arg0, LoadSceneMode _) => {
+                            if (arg0.name == "Menu") Build();
+                        };
+                        SceneManager.sceneLoaded -= buildWhenLoaded;
+                        SceneManager.sceneLoaded += buildWhenLoaded;
+                    }
                 }
+
                 return _instance;
             }
         }
@@ -129,10 +151,14 @@ namespace CustomGameOptionsTemplate
         private int _listIndex = 0;
 
         //Holds all the custom options the user specifies
-        private IList<GameOption> customOptions = new List<GameOption>();
+        //We specify type "object" so that the list doesn't
+        //encounter casting issues when it's grabbed for reflection,
+        //in the above code. WE WILL ASSUME THAT THIS IS A LIST
+        //OF GAMEOPTIONS
+        private IList<object> customOptions = new List<object>();
 
         //Returns a list of options for the current page index
-        private IList<GameOption> GetOptionsForPage(int page)
+        private IList<object> GetOptionsForPage(int page)
         {
             //Default options
             if (page == 0) return null;
@@ -144,15 +170,15 @@ namespace CustomGameOptionsTemplate
         }
 
         //Sets the active value for our game options depending on the active page
-        private void ChangePage(int page, params Transform[] defaults)
+        private void ChangePage(int page, Transform container, params Transform[] defaults)
         {
             var options = Instance.GetOptionsForPage(Instance._listIndex);
             bool defaultsActive = options == null;
             defaults?.ToList().ForEach(x => x.gameObject.SetActive(defaultsActive));
 
             //Custom options
-            Instance.customOptions?.ToList().ForEach(x => x.gameObject.SetActive(false));
-            if (!defaultsActive) options?.ToList().ForEach(x => x.gameObject.SetActive(true));
+            Instance.customOptions?.ToList().ForEach(x => x.GetField<GameObject>("gameObject").SetActive(false));
+            if (!defaultsActive) options?.ToList().ForEach(x => x.GetField<GameObject>("gameObject").SetActive(true));
         }
 
         public static MultiSelectOption CreateListOption(string optionName)
@@ -185,6 +211,10 @@ namespace CustomGameOptionsTemplate
             Transform mirrorOriginal = container.Find("Mirror");
             Transform staticLightsOriginal = container.Find("StaticLights");
 
+            //Get references to other UI elements we need to hide
+            //Transform divider = (RectTransform)_govc.transform.Find("Switches").Find("Separator");
+            //Transform defaults = (RectTransform)_govc.transform.Find("Switches").Find("DefaultsButton");
+
             //Future duplicated switches
             Transform noEnergy = null;
             Transform noObstacles = null;
@@ -201,7 +231,7 @@ namespace CustomGameOptionsTemplate
             (_pageUpButton.transform as RectTransform).sizeDelta = new Vector2((_pageUpButton.transform.parent as RectTransform).sizeDelta.x, 3.5f);
             _pageUpButton.onClick.AddListener(delegate ()
             {
-                Instance.ChangePage(--Instance._listIndex, noEnergy, noObstacles, mirror, staticLights);
+                Instance.ChangePage(--Instance._listIndex, container, noEnergy, noObstacles, mirror, staticLights);
 
                 //Nice responsive scroll buttons
                 if (Instance._listIndex <= 0) _pageUpButton.interactable = false;
@@ -216,9 +246,10 @@ namespace CustomGameOptionsTemplate
             staticLights = Instantiate(staticLightsOriginal, container);
 
             //Create custom options
-            foreach (GameOption option in Instance.customOptions)
+            foreach (object option in Instance.customOptions)
             {
-                option.Instantiate();
+                //Due to possible "different" types (due to cross-plugin support), we need to do this through reflection
+                option.InvokeMethod("Instantiate");
             }
 
             //Destroy original toggles and set their corresponding references to the new toggles
@@ -239,7 +270,7 @@ namespace CustomGameOptionsTemplate
             (_pageDownButton.transform as RectTransform).sizeDelta = new Vector2((_pageDownButton.transform.parent as RectTransform).sizeDelta.x, (_pageDownButton.transform as RectTransform).sizeDelta.y);
             _pageDownButton.onClick.AddListener(delegate ()
             {
-                Instance.ChangePage(++Instance._listIndex, noEnergy, noObstacles, mirror, staticLights);
+                Instance.ChangePage(++Instance._listIndex, container, noEnergy, noObstacles, mirror, staticLights);
 
                 //Nice responsive scroll buttons
                 if (Instance._listIndex >= 0) _pageUpButton.interactable = true;
@@ -289,5 +320,4 @@ namespace CustomGameOptionsTemplate
             ApplySettings();
         }
     }
-
 }

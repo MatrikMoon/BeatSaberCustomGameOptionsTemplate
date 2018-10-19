@@ -4,7 +4,7 @@ namespace CustomGameOptionsTemplate
 {
     public class Logger
     {
-        private const string prefix = "[DiscordCommunityPlugin]: ";
+        private const string prefix = "[CustomOptionsTemplate]: ";
 
         public static void Error(string message)
         {
