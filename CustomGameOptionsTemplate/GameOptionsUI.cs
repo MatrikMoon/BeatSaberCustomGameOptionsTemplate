@@ -22,7 +22,7 @@ using UnityEngine.UI;
  * Yes, I know my use of reflection is a big, big, avoidable mess. I know.
  * I see it too and it makes me cringe because this could all be so much
  * simpler without dealing with multiple plugins. But you know what?
- * This is how I did it. I had fun. It works.
+ * This is how I did it. ~~I had fun~~. It works.
  * Let's just agree to not ask questions, eh?
  * 
  * The plugin with the latest version of the helper will be used to display
@@ -164,25 +164,24 @@ namespace CustomGameOptionsTemplate
                     {
                         var existingComponent = existingObject.GetComponent("GameOptionsUI");
 
+                        //The following `if` is necessary because Unity overrides == to return null
+                        //when a MonoBehavior isn't active. It's annoying, and getting in my way.
+                        //Hence this workaround.
+                        if (IsReallyNull(_instance))
+                        {
+                            _instance = new GameOptionsUI();
+                        }
+
+                        //Keep the override's options list up to date with the global one
+                        var existingOptions = existingComponent.GetField<IList<object>>("customOptions");
+                        _instance.customOptions = existingOptions;
+
                         //If this version is newer, we will override the build
                         if (existingComponent.GetField<int>("versionCode") < versionConst)
                         {
-                            var existingOptions = existingComponent.GetField<IList<object>>("customOptions");
-                            _instance = new GameOptionsUI();
-                            _instance.customOptions = existingOptions;
-
                             existingComponent.SetField("versionCode", _instance.versionCode);
                             existingComponent.InvokeMethod("SetBuild", (Action)Build);
                         }
-                        //Otherwise, we'll just tag along and insert our options to the main instanace
-                        else if (existingComponent.GetField<int>("versionConst") >= versionConst)
-                        {
-                            var existingOptions = existingComponent.GetField<IList<object>>("customOptions");
-                            _instance = new GameOptionsUI();
-                            _instance.customOptions = existingOptions;
-                        }
-                        //If neither of the above, we're probably the main instance, but hijacked so that
-                        //_instance appears null. This is... Gross... But I am stubborn and this is how it happened.
                     }
                     else
                     {
@@ -204,6 +203,20 @@ namespace CustomGameOptionsTemplate
 
                 return _instance;
             }
+        }
+
+        //Helper. Checks to see if we can access the custom options.
+        //If so, the instance exists.
+        //Hacky. Shut up.
+        public static bool IsReallyNull(GameOptionsUI toTest)
+        {
+            IList<object> sample = null;
+            try
+            {
+                sample = toTest.GetField<IList<object>>("customOptions");
+            }
+            catch { }
+            return sample == null;
         }
 
         //Set the build method to call
@@ -342,6 +355,10 @@ namespace CustomGameOptionsTemplate
                 if (((Instance.customOptions.Count + 4 - 1) / 4) - Instance._listIndex <= 0) _pageDownButton.interactable = false;
             });
             _pageDownButton.interactable = Instance.customOptions.Count > 0;
+
+            //Unfortunately, due to weird object creation for versioning, this doesn't always
+            //happen when the scene changes
+            Instance._listIndex = 0;
         }
     }
 
