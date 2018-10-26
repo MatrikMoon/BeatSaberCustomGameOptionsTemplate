@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -13,7 +14,26 @@ using UnityEngine.UI;
  * 
  * IMPORTANT!!! => You *MUST* use this in "ActiveSceneChanged".
  * This class registers a callback with "SceneLoaded" for its own purposes.
- * If you use this in "SceneLoaded", it WILL break.
+ * If you use this in "SceneLoaded", the internal callback will never be called.
+ * 
+ * Notes:
+ * This can be used in multiple plugins at the same time.
+ * 
+ * Yes, I know my use of reflection is a big, big, avoidable mess. I know.
+ * I see it too and it makes me cringe because this could all be so much
+ * simpler without dealing with multiple plugins. But you know what?
+ * This is how I did it. I had fun. It works.
+ * Let's just agree to not ask questions, eh?
+ * 
+ * The plugin with the latest version of the helper will be used to display
+ * the menu. For example, right now, the custom options pages look exactly
+ * like the default options page. They have the divider and the Defaults
+ * button. We'll call this "Version 1". I'm thinking of making the custom
+ * options pages cover the whole panel, so that option names can be longer
+ * without wrapping. We'll call that "Update 2". If one plugin is using
+ * "Update 1" and another is using "Update 2", the one using "Update 2"
+ * will be the one that Build()s the menu, and the plugin using
+ * "Update 1" will have its options displayed covering the whole panel.
  */
 
 namespace CustomGameOptionsTemplate
@@ -85,7 +105,7 @@ namespace CustomGameOptionsTemplate
 
             //Slim down the toggle option so it fits in the space we have before the divider
             (gameObject.transform as RectTransform).sizeDelta = new Vector2(50, (gameObject.transform as RectTransform).sizeDelta.y);
-            
+
             //This magical nonsense is courtesy of Taz and his SettingsUI class
             VolumeSettingsController volume = gameObject.GetComponent<VolumeSettingsController>();
             ListViewController newListSettingsController = (ListViewController)ReflectionUtil.CopyComponent(volume, typeof(ListSettingsController), typeof(ListViewController), gameObject);
@@ -122,6 +142,15 @@ namespace CustomGameOptionsTemplate
 
     class GameOptionsUI : MonoBehaviour
     {
+        //The version of this helper.
+        //The plugin using the latest version
+        //will be used to Build() the options menu
+        public const int versionConst = 001;
+        public int versionCode = versionConst; //Non-static so it resets on each creation
+
+        //The function to call to build the UI
+        private static Action _buildFunc = Build;
+
         //Handle instances (each instance dies on new scene load, new ones are created on access)
         private static GameOptionsUI _instance;
         private static GameOptionsUI Instance
@@ -135,8 +164,25 @@ namespace CustomGameOptionsTemplate
                     {
                         var existingComponent = existingObject.GetComponent("GameOptionsUI");
 
-                        _instance = new GameOptionsUI();
-                        _instance.customOptions = existingObject.GetComponent("GameOptionsUI").GetField<IList<object>>("customOptions");
+                        //If this version is newer, we will override the build
+                        if (existingComponent.GetField<int>("versionCode") < versionConst)
+                        {
+                            var existingOptions = existingComponent.GetField<IList<object>>("customOptions");
+                            _instance = new GameOptionsUI();
+                            _instance.customOptions = existingOptions;
+
+                            existingComponent.SetField("versionCode", _instance.versionCode);
+                            existingComponent.InvokeMethod("SetBuild", (Action)Build);
+                        }
+                        //Otherwise, we'll just tag along and insert our options to the main instanace
+                        else if (existingComponent.GetField<int>("versionConst") >= versionConst)
+                        {
+                            var existingOptions = existingComponent.GetField<IList<object>>("customOptions");
+                            _instance = new GameOptionsUI();
+                            _instance.customOptions = existingOptions;
+                        }
+                        //If neither of the above, we're probably the main instance, but hijacked so that
+                        //_instance appears null. This is... Gross... But I am stubborn and this is how it happened.
                     }
                     else
                     {
@@ -145,7 +191,11 @@ namespace CustomGameOptionsTemplate
                         //If we're here, this is the class that will handle the ".Build()"
                         //when necessary. Only the first instance created will make it here.
                         UnityAction<Scene, LoadSceneMode> buildWhenLoaded = (Scene arg0, LoadSceneMode _) => {
-                            if (arg0.name == "Menu") Build();
+                            if (arg0.name == "Menu")
+                            {
+                                //Whatever instance which is currently the most recent will be called
+                                _buildFunc.Invoke();
+                            }
                         };
                         SceneManager.sceneLoaded -= buildWhenLoaded;
                         SceneManager.sceneLoaded += buildWhenLoaded;
@@ -154,6 +204,12 @@ namespace CustomGameOptionsTemplate
 
                 return _instance;
             }
+        }
+
+        //Set the build method to call
+        public static void SetBuild(Action buildFunc)
+        {
+            _buildFunc = buildFunc;
         }
 
         //Index of current list
